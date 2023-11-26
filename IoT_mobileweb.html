@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cupcake">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Baby Monitoring Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/daisyui@4.4.6/dist/full.min.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @keyframes sirenAnimation {
+        0%,
+        100% {
+          background-color: red;
+        }
+        50% {
+          background-color: gray;
+        }
+      }
+      @keyframes alertAnimation {
+        0%,
+        100% {
+          background-color: orange;
+        }
+        50% {
+          background-color: gray;
+        }
+      }
+      @keyframes swing-rotate {
+        0%,
+        100% {
+          transform: translateX(0) rotate(0deg);
+        }
+        25% {
+          transform: translateX(10px) rotate(5deg);
+        }
+        50% {
+          transform: translateX(0) rotate(0deg);
+        }
+        75% {
+          transform: translateX(-10px) rotate(-5deg);
+        }
+      }
+      .emergency-mode {
+        animation: sirenAnimation 0.5s linear infinite;
+        opacity: 50%;
+      }
+
+      .alert-mode {
+        animation: alertAnimation 0.5s linear infinite;
+        opacity: 50%;
+      }
+      .ringing {
+        animation: swing-rotate 1s ease infinite;
+      }
+      @keyframes fallingAnimation {
+        0% {
+          transform: translateY(-10px);
+          opacity: 0;
+        }
+        100% {
+          transform: translateY(100vh);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 font-sans">
+    <div class="bg-blue-300 p-4 mb-5 text-white text-center">
+      <div class="flex justify-between items-center px-2 md:px-1">
+        <div class="lg:ml-3">
+          <i class="fas fa-lightbulb lg:ml-4 mr-3"></i>
+          <span id="alarm-message">특이사항 없음</span>
+        </div>
+        <div class="mr-3 hidden" id="timerBox">
+          <i class="fas fa-baby"></i>
+          <span id="timer" class="font-mono text-xl animate-pulse"
+            >00:00:00</span
+          >
+        </div>
+      </div>
+    </div>
+    <main class="container mx-auto lg:flex lg:space-x-8">
+      <div class="lg:w-8/12 mt-4">
+        <!-- Video iframe goes here -->
+        <iframe
+          class="p-1 w-full h-[45vh] md:w-full md:h-[60vh] lg:h-full"
+          src="https://www.youtube.com/embed/tgbNymZ7vqY"
+        >
+        </iframe>
+      </div>
+      <div class="lg:w-5/12 mt-2">
+        <div class="bg-gray-200 p-4 rounded-lg mt-4">
+          <div class="flex items-center">
+            <i class="fas fa-thermometer-half text-xl"></i>
+            <span class="ml-2">25°C</span>
+            <i class="fas fa-tint text-xl ml-4"></i>
+            <span class="ml-2">60%</span>
+            <i class="fas fa-weight text-xl ml-4"></i>
+            <span class="ml-2">5.2kg</span>
+          </div>
+        </div>
+        <div class="bg-gray-200 p-4 rounded-lg mt-4">
+          <div class="flex items-center">
+            <i class="fas fa-tv text-xl"></i>
+            <span class="ml-2">리모콘</span>
+          </div>
+          <div class="mt-4 space-y-4">
+            <!-- 아기 모빌 회전 컴포넌트 -->
+            <div class="flex items-center">
+              <span>모빌 회전</span>
+              <label class="ml-auto">
+                <input type="checkbox" class="toggle toggle-primary" />
+              </label>
+            </div>
+            <!-- 아기 요람 흔들기 컴포넌트 -->
+            <div class="flex items-center">
+              <span>요람 흔들기</span>
+              <label class="ml-auto">
+                <input type="checkbox" class="toggle toggle-primary" />
+              </label>
+            </div>
+            <!-- 선풍기 동작 컴포넌트 -->
+            <div class="flex items-center">
+              <span>선풍기 동작</span>
+              <label class="ml-auto">
+                <input type="checkbox" class="toggle toggle-primary" />
+              </label>
+            </div>
+            <!-- 타이머 설정 패널 -->
+            <div class="mt-4 flex items-center">
+              <span>분유 타이머</span>
+              <label class="ml-auto">
+                <div class="relative inline-flex">
+                  <select
+                    id="hours"
+                    class="select select-bordered w-full h-4 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="0">0시간</option>
+                    <option value="1">1시간</option>
+                    <option value="2">2시간</option>
+                    <!-- 원하는 시간대를 추가하세요 -->
+                  </select>
+                </div>
+                <div class="relative inline-flex p-2">
+                  <select
+                    id="minutes"
+                    class="select select-bordered w-full h-4 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="0">0분</option>
+                    <option value="1">1분</option>
+                    <option value="15">15분</option>
+                    <option value="30">30분</option>
+                    <!-- 원하는 분을 추가하세요 -->
+                  </select>
+                </div>
+                <button
+                  id="start-timer-button"
+                  class="timer-button h-4 btn btn-primary text-white"
+                >
+                  시작
+                </button>
+                <button
+                  id="cancel-timer-button"
+                  class="timer-button h-4 btn btn-error text-white hidden"
+                >
+                  취소
+                </button>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- Add this HTML for the modalBg modal -->
+    <div
+      id="modalBg"
+      class="fixed inset-0 flex z-10 bg-gray-900 bg-opacity-20 hidden"
+    ></div>
+    <div
+      id="modal"
+      class="fixed inset-0 flex items-center justify-center hidden z-50"
+    >
+      <div
+        class="bg-white p-8 px-8 rounded-lg shadow-lg justify-center items-center"
+        id="modalBox"
+      >
+        <div class="flex items-center justify-center" id="iconBox">
+          <i class="fas text-4xl mt-2" id="alert-icon"></i>
+        </div>
+        <p class="text-center mt-2" id="alert-message">알람 메시지</p>
+        <div class="flex items-center justify-center mt-3">
+          <button
+            id="confirm-button"
+            class="btn btn-secondary btn-sm text-white"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      const timerDisplay = document.getElementById("timer");
+      const timerBox = document.getElementById("timerBox");
+      const startButton = document.getElementById("start-timer-button");
+      const cancelButton = document.getElementById("cancel-timer-button");
+      const alarmMessage = document.getElementById("alarm-message");
+      const modalBg = document.getElementById("modalBg");
+      const modal = document.getElementById("modal");
+      const modalBox = document.getElementById("modalBox");
+      const alertIcon = document.getElementById("alert-icon");
+      const iconBox = document.getElementById("iconBox");
+      const confirmButton = document.getElementById("confirm-button");
+      let countdownTimer;
+
+      confirmButton.addEventListener("click", () => {
+        alarmMessage.textContent = "특이사항 없음.";
+        modal.classList.add("hidden");
+        modalBg.classList.add("hidden");
+      });
+
+      function showModal(message, iconClass, animationMode, iconAnime) {
+        // Clear previous icons and animations
+        iconBox.innerHTML = "";
+        modalBg.classList.remove("hidden", "alert-mode", "emergency-mode");
+        modal.classList.remove("hidden");
+        iconBox.classList.remove("ringing", "anime-bounce");
+        alertIcon.classList.remove(
+          "fa-poo",
+          "fa-baby",
+          "fa-circle-exclamation",
+          "fa-person-breastfeeding"
+        );
+        // Set new message and icon
+        alarmMessage.textContent = message;
+        const icon = document.createElement("i");
+        icon.className = `fas ${iconClass} text-4xl mt-2`;
+        iconBox.appendChild(icon);
+        iconBox.classList.add(iconAnime);
+        // Add animation and show modal
+        modalBg.classList.add(animationMode);
+      }
+
+      // 타이머 시작 버튼 클릭 시
+      startButton.addEventListener("click", () => {
+        const hours = parseInt(document.getElementById("hours").value);
+        const minutes = parseInt(document.getElementById("minutes").value);
+        const totalSeconds = (hours * 60 + minutes) * 60;
+
+        startTimer(totalSeconds);
+      });
+
+      // 타이머 취소 버튼 클릭 시
+      cancelButton.addEventListener("click", () => {
+        timerBox.classList.add("hidden");
+        stopTimer();
+      });
+
+      function startTimer(totalSeconds) {
+        if (totalSeconds <= 0) {
+          timerBox.classList.add("hidden");
+          return;
+        }
+        startButton.classList.add("hidden");
+        cancelButton.classList.remove("hidden");
+        timerBox.classList.remove("hidden");
+        countdownTimer = setInterval(() => {
+          if (totalSeconds <= 0) {
+            showModal(
+              "응애 ~ 맘마 주세요!",
+              "fa-person-breastfeeding",
+              "alert-mode",
+              "animate-bounce"
+            );
+            timerBox.classList.add("hidden");
+            stopTimer();
+          } else {
+            setTimerDisplay(totalSeconds);
+            totalSeconds--;
+          }
+        }, 1000);
+      }
+
+      function stopTimer() {
+        clearInterval(countdownTimer);
+        setTimerDisplay(0);
+        startButton.classList.remove("hidden");
+        cancelButton.classList.add("hidden");
+      }
+
+      function setTimerDisplay(totalSeconds) {
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        timerDisplay.textContent = `${hours
+          .toString()
+          .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+          .toString()
+          .padStart(2, "0")}`;
+      }
+
+      // 똥 눈내림 애니메이션 생성
+      function createFallingPooEmoji() {
+        const emoji = document.createElement("i");
+        emoji.className = "fas fa-poo text-brown-300 falling-poo text-2xl";
+        emoji.style.position = "absolute";
+        emoji.style.left = `${Math.random() * 100}%`;
+        emoji.style.top = "-10px";
+        emoji.style.animation = `fallingAnimation ${
+          Math.random() * 2 + 1.5
+        }s linear infinite`;
+
+        document.body.appendChild(emoji);
+
+        // 똥 애니메이션이 화면 밖으로 사라지도록 처리
+        emoji.addEventListener("animationiteration", () => {
+          emoji.remove();
+        });
+      }
+
+      // 아기 배변 알림
+      function showDiaperChangeAlert() {
+        showModal(
+          "끙차~아기 기저귀를 갈아주세요!",
+          "fa-poo",
+          "alert-mode",
+          "animate-bounce"
+        );
+        // Create falling poo emojis
+        for (let i = 0; i < 20; i++) {
+          setTimeout(createFallingPooEmoji, i * 150); // 애니메이션을 간격을 두고 생성
+        }
+      }
+      // 아기 울음 알림
+      function showBabyCryAlert() {
+        showModal(
+          "응애응애. 아기가 울고 있어요.",
+          "fa-baby",
+          "emergency-mode",
+          "ringing"
+        );
+      }
+
+      // 아기 탈출 알림
+      function showBabyEscapeAlert() {
+        showModal(
+          "아기가 요람에서 벗어났습니다!",
+          "fa-circle-exclamation",
+          "emergency-mode",
+          "ringing"
+        );
+      }
+      // // 아기 배변모드 예시: 5초마다 배변 감지 알림 표시
+      // setTimeout(showDiaperChangeAlert, 5000);
+      // setTimeout(showBabyEscapeAlert, 10000);
+      // setTimeout(showBabyCryAlert, 15000);
+      // setTimeout(showBabyMealAlert, 18000);
+    </script>
+  </body>
+</html>
