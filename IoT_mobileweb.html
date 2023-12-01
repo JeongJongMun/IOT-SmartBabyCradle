@@ -72,141 +72,6 @@
         }
       }
     </style>
-  </head>
-  <body class="bg-gray-100 font-sans">
-    <div class="bg-blue-300 p-4 mb-5 text-white text-center">
-      <div class="flex justify-between items-center px-2 md:px-1">
-        <div class="lg:ml-3">
-          <i class="fas fa-lightbulb lg:ml-4 mr-3"></i>
-          <span id="alarm-message">특이사항 없음</span>
-        </div>
-        <div class="mr-3 hidden" id="timerBox">
-          <i class="fas fa-baby"></i>
-          <span id="timer" class="font-mono text-xl animate-pulse"
-            >00:00:00</span
-          >
-        </div>
-      </div>
-    </div>
-    <main class="container mx-auto lg:flex lg:space-x-8">
-      <div class="lg:w-8/12 mt-4">
-        <!-- Video iframe goes here -->
-        <iframe
-          class="p-1 w-full h-[45vh] md:w-full md:h-[60vh] lg:h-full"
-          src="https://www.youtube.com/embed/tgbNymZ7vqY"
-        >
-        </iframe>
-      </div>
-      <div class="lg:w-5/12 mt-2">
-        <div class="bg-gray-200 p-4 rounded-lg mt-4">
-          <div class="flex items-center">
-            <i class="fas fa-thermometer-half text-xl"></i>
-            <span class="ml-2">25°C</span>
-            <i class="fas fa-tint text-xl ml-4"></i>
-            <span class="ml-2">60%</span>
-            <i class="fas fa-weight text-xl ml-4"></i>
-            <span class="ml-2">5.2kg</span>
-          </div>
-        </div>
-        <div class="bg-gray-200 p-4 rounded-lg mt-4">
-          <div class="flex items-center">
-            <i class="fas fa-tv text-xl"></i>
-            <span class="ml-2">리모콘</span>
-          </div>
-          <div class="mt-4 space-y-4">
-            <!-- 아기 모빌 회전 컴포넌트 -->
-            <div class="flex items-center">
-              <span>모빌 회전</span>
-              <label class="ml-auto">
-                <input type="checkbox" class="toggle toggle-primary" />
-              </label>
-            </div>
-            <!-- 아기 요람 흔들기 컴포넌트 -->
-            <div class="flex items-center">
-              <span>요람 흔들기</span>
-              <label class="ml-auto">
-                <input type="checkbox" class="toggle toggle-primary" />
-              </label>
-            </div>
-            <!-- 선풍기 동작 컴포넌트 -->
-            <div class="flex items-center">
-              <span>선풍기 동작</span>
-              <label class="ml-auto">
-                <input type="checkbox" class="toggle toggle-primary" />
-              </label>
-            </div>
-            <!-- 타이머 설정 패널 -->
-            <div class="mt-4 flex items-center">
-              <span>분유 타이머</span>
-              <label class="ml-auto">
-                <div class="relative inline-flex">
-                  <select
-                    id="hours"
-                    class="select select-bordered w-full h-4 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="0">0시간</option>
-                    <option value="1">1시간</option>
-                    <option value="2">2시간</option>
-                    <!-- 원하는 시간대를 추가하세요 -->
-                  </select>
-                </div>
-                <div class="relative inline-flex p-2">
-                  <select
-                    id="minutes"
-                    class="select select-bordered w-full h-4 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="0">0분</option>
-                    <option value="1">1분</option>
-                    <option value="15">15분</option>
-                    <option value="30">30분</option>
-                    <!-- 원하는 분을 추가하세요 -->
-                  </select>
-                </div>
-                <button
-                  id="start-timer-button"
-                  class="timer-button h-4 btn btn-primary text-white"
-                >
-                  시작
-                </button>
-                <button
-                  id="cancel-timer-button"
-                  class="timer-button h-4 btn btn-error text-white hidden"
-                >
-                  취소
-                </button>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
-    <!-- Add this HTML for the modalBg modal -->
-    <div
-      id="modalBg"
-      class="fixed inset-0 flex z-10 bg-gray-900 bg-opacity-20 hidden"
-    ></div>
-    <div
-      id="modal"
-      class="fixed inset-0 flex items-center justify-center hidden z-50"
-    >
-      <div
-        class="bg-white p-8 px-8 rounded-lg shadow-lg justify-center items-center"
-        id="modalBox"
-      >
-        <div class="flex items-center justify-center" id="iconBox">
-          <i class="fas text-4xl mt-2" id="alert-icon"></i>
-        </div>
-        <p class="text-center mt-2" id="alert-message">알람 메시지</p>
-        <div class="flex items-center justify-center mt-3">
-          <button
-            id="confirm-button"
-            class="btn btn-secondary btn-sm text-white"
-          >
-            확인
-          </button>
-        </div>
-      </div>
-    </div>
     <script>
       const timerDisplay = document.getElementById("timer");
       const timerBox = document.getElementById("timerBox");
@@ -364,5 +229,140 @@
       // setTimeout(showBabyCryAlert, 15000);
       // setTimeout(showBabyMealAlert, 18000);
     </script>
+  </head>
+  <body class="bg-gray-100 font-sans">
+    <div class="bg-blue-300 p-4 mb-5 text-white text-center">
+      <div class="flex justify-between items-center px-2 md:px-1">
+        <div class="lg:ml-3">
+          <i class="fas fa-lightbulb lg:ml-4 mr-3"></i>
+          <span id="alarm-message">특이사항 없음</span>
+        </div>
+        <div class="mr-3 hidden" id="timerBox">
+          <i class="fas fa-baby"></i>
+          <span id="timer" class="font-mono text-xl animate-pulse"
+            >00:00:00</span
+          >
+        </div>
+      </div>
+    </div>
+    <main class="container mx-auto lg:flex lg:space-x-8">
+      <div class="lg:w-8/12 mt-4">
+        <!-- Video iframe goes here -->
+        <iframe
+          class="p-1 w-full h-[45vh] md:w-full md:h-[60vh] lg:h-full"
+          src="https://www.youtube.com/embed/tgbNymZ7vqY"
+        >
+        </iframe>
+      </div>
+      <div class="lg:w-5/12 mt-2">
+        <div class="bg-gray-200 p-4 rounded-lg mt-4">
+          <div class="flex items-center">
+            <i class="fas fa-thermometer-half text-xl"></i>
+            <span class="ml-2">25°C</span>
+            <i class="fas fa-tint text-xl ml-4"></i>
+            <span class="ml-2">60%</span>
+            <i class="fas fa-weight text-xl ml-4"></i>
+            <span class="ml-2">5.2kg</span>
+          </div>
+        </div>
+        <div class="bg-gray-200 p-4 rounded-lg mt-4">
+          <div class="flex items-center">
+            <i class="fas fa-tv text-xl"></i>
+            <span class="ml-2">리모콘</span>
+          </div>
+          <div class="mt-4 space-y-4">
+            <!-- 아기 모빌 회전 컴포넌트 -->
+            <div class="flex items-center">
+              <span>모빌 회전</span>
+              <label class="ml-auto">
+                <input type="checkbox" class="toggle toggle-primary" />
+              </label>
+            </div>
+            <!-- 아기 요람 흔들기 컴포넌트 -->
+            <div class="flex items-center">
+              <span>요람 흔들기</span>
+              <label class="ml-auto">
+                <input type="checkbox" class="toggle toggle-primary" />
+              </label>
+            </div>
+            <!-- 선풍기 동작 컴포넌트 -->
+            <div class="flex items-center">
+              <span>선풍기 동작</span>
+              <label class="ml-auto">
+                <input type="checkbox" class="toggle toggle-primary" />
+              </label>
+            </div>
+            <!-- 타이머 설정 패널 -->
+            <div class="mt-4 flex items-center">
+              <span>분유 타이머</span>
+              <label class="ml-auto">
+                <div class="relative inline-flex">
+                  <select
+                    id="hours"
+                    class="select select-bordered w-full h-4 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="0">0시간</option>
+                    <option value="1">1시간</option>
+                    <option value="2">2시간</option>
+                    <!-- 원하는 시간대를 추가하세요 -->
+                  </select>
+                </div>
+                <div class="relative inline-flex p-2">
+                  <select
+                    id="minutes"
+                    class="select select-bordered w-full h-4 pr-10 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="0">0분</option>
+                    <option value="1">1분</option>
+                    <option value="15">15분</option>
+                    <option value="30">30분</option>
+                    <!-- 원하는 분을 추가하세요 -->
+                  </select>
+                </div>
+                <button
+                  id="start-timer-button"
+                  class="timer-button h-4 btn btn-primary text-white"
+                >
+                  시작
+                </button>
+                <button
+                  id="cancel-timer-button"
+                  class="timer-button h-4 btn btn-error text-white hidden"
+                >
+                  취소
+                </button>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- Add this HTML for the modalBg modal -->
+    <div
+      id="modalBg"
+      class="fixed inset-0 flex z-10 bg-gray-900 bg-opacity-20 hidden"
+    ></div>
+    <div
+      id="modal"
+      class="fixed inset-0 flex items-center justify-center hidden z-50"
+    >
+      <div
+        class="bg-white p-8 px-8 rounded-lg shadow-lg justify-center items-center"
+        id="modalBox"
+      >
+        <div class="flex items-center justify-center" id="iconBox">
+          <i class="fas text-4xl mt-2" id="alert-icon"></i>
+        </div>
+        <p class="text-center mt-2" id="alert-message">알람 메시지</p>
+        <div class="flex items-center justify-center mt-3">
+          <button
+            id="confirm-button"
+            class="btn btn-secondary btn-sm text-white"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
