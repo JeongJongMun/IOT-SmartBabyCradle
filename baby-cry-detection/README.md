@@ -2,7 +2,7 @@
 
 ## Overview
 
-This Arduino-based system detects a baby crying using a sound sensor and communicates the detection status to AWS IoT Core. It utilizes specific sound pattern analysis and frequency analysis for accurate detection.
+This Arduino-based system detects a baby crying using a sound sensor(SZH-EK033) and communicates the detection status to AWS IoT Core. It utilizes specific sound pattern analysis and frequency analysis for accurate detection.
 
 ## AWS IoT Library
 
