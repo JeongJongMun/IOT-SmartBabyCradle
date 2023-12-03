@@ -11,21 +11,21 @@ const char* HOST_ADDRESS = "YourAWSIoTEndpoint";
 const char* CLIENT_ID = "YourClientID";
 const char* BABY_CRYING_TOPIC = "babycrying";
 
-const int SOUND_SENSOR_PIN = A0;
+const int SOUND_SENSOR_PIN = 26;
 const int SAMPLES = 512; // Must be a power of 2
 const double SAMPLING_FREQUENCY = 1000; // Hz, must be less than 10000 due to ADC
 const int SOUND_THRESHOLD = 45; // Example threshold in decibel
 
 // Constants for detectSoundPattern
-const int MIN_SPIKES = 40; // Minimum number of spikes
-const int MAX_SPIKES = 160; // Maximum number of spikes
-const double SPIKE_THRESHOLD = 20.0; // Threshold for detecting a spike in intensity
+const int MIN_SPIKES = 75; // Minimum number of spikes to consider for a crying pattern
+const int MAX_SPIKES = 160; // Maximum number to avoid continuous noise
+const double SPIKE_THRESHOLD = 15.0; // Threshold for detecting a spike in intensity
 
 // Constants for isBabyCrying
 const double BABY_CRY_FREQ_MIN = 250.0; // Minimum frequency for baby cry (in Hz)
-const double BABY_CRY_FREQ_MAX = 600.0; // Maximum frequency for baby cry (in Hz)
-const double INTENSITY_THRESHOLD = 35.0; // Minimum intensity to consider
-const int MATCH_THRESHOLD = 115; // Number of matches within the frequency range
+const double BABY_CRY_FREQ_MAX = 550.0; // Maximum frequency for baby cry (in Hz)
+const double INTENSITY_THRESHOLD = 2000.0; // Minimum intensity to consider
+const int MATCH_THRESHOLD = 100; // Number of matches within the frequency range to consider as baby crying
 
 double vReal[SAMPLES];
 double vImag[SAMPLES];
