@@ -1,172 +1,335 @@
-#include <esp_now.h>
 #include <WiFi.h>
-#include "ESPAsyncWebServer.h"
-#include <Arduino_JSON.h>
+#include <FS.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 
 // Replace with your network credentials (STATION)
-const char* ssid = "KAU-Guest";
-const char* password = "";
-
-// Structure example to receive data
-// Must match the sender structure
-typedef struct struct_message {
-  int id;
-  float temp;
-  float hum;
-  unsigned int readingId;
-} struct_message;
-
-struct_message incomingReadings;
-
-JSONVar board;
-
-AsyncWebServer server(80);
-AsyncEventSource events("/events");
-
-// callback function that will be executed when data is received
-void OnDataRecv(const uint8_t * mac_addr, const uint8_t *incomingData, int len) { 
-  // Copies the sender mac address to a string
-  char macStr[18];
-  Serial.print("Packet received from: ");
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  Serial.println(macStr);
-  memcpy(&incomingReadings, incomingData, sizeof(incomingReadings));
-  
-  board["id"] = incomingReadings.id;
-  board["temperature"] = incomingReadings.temp;
-  board["humidity"] = incomingReadings.hum;
-  board["readingId"] = String(incomingReadings.readingId);
-  String jsonString = JSON.stringify(board);
-  events.send(jsonString.c_str(), "new_readings", millis());
-  
-  Serial.printf("Board ID %u: %u bytes\n", incomingReadings.id, len);
-  Serial.printf("t value: %4.2f \n", incomingReadings.temp);
-  Serial.printf("h value: %4.2f \n", incomingReadings.hum);
-  Serial.printf("readingID value: %d \n", incomingReadings.readingId);
-  Serial.println();
-}
+const char* ssid = "DLive_B8E9_";
+const char* password = "a12345678";
 
 const char index_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML><html>
-<head>
-  <title>ESP-NOW DASHBOARD</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-  <link rel="icon" href="data:,">
-  <style>
-    html {font-family: Arial; display: inline-block; text-align: center;}
-    p {  font-size: 1.2rem;}
-    body {  margin: 0;}
-    .topnav { overflow: hidden; background-color: #2f4468; color: white; font-size: 1.7rem; }
-    .content { padding: 20px; }
-    .card { background-color: white; box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5); }
-    .cards { max-width: 700px; margin: 0 auto; display: grid; grid-gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-    .reading { font-size: 2.8rem; }
-    .packet { color: #bebebe; }
-    .card.temperature { color: #fd7e14; }
-    .card.humidity { color: #1b78e2; }
-  </style>
-</head>
-<body>
-  <div class="topnav">
-    <h3>ESP-NOW DASHBOARD</h3>
-  </div>
-  <div class="content">
-    <div class="cards">
-      <div class="card temperature">
-        <h4><i class="fas fa-thermometer-half"></i> BOARD #1 - TEMPERATURE</h4><p><span class="reading"><span id="t1"></span> &deg;C</span></p><p class="packet">Reading ID: <span id="rt1"></span></p>
+<!DOCTYPE html>
+<html lang="en" data-theme="cupcake">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Baby Monitoring Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daisyui@4.4.6/dist/full.min.css"/>
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <style>
+      @keyframes sirenAnimation { 0%, 50% {background-color: gray;} 100% {background-color: red;} }
+      @keyframes alertAnimation { 0%, 100% {background-color: orange;} 50% {background-color: gray;} }
+      @keyframes swing-rotate {
+        0%,
+        25% {transform: translateX(10px) rotate(5deg);}
+        50% {transform: translateX(0) rotate(0deg);}
+        75% {transform: translateX(-10px) rotate(-5deg);}
+        100% {transform: translateX(0) rotate(0deg);}
+      }
+      
+      .emergency-mode { opacity: 50%; animation: sirenAnimation 0.5s linear infinite; }
+      .alert-mode { opacity: 50%; animation: alertAnimation 0.5s linear infinite; }
+      .ringing { animation: swing-rotate 1s ease infinite; }
+
+      #info > i { font-size: 1.25rem; margin-right: 0.5rem; }
+      #info > i > span { font-size: 1rem; margin-left: 0.5rem; }
+      #controller > div { display: flex; align-items: center; }
+      #controller > div > label { margin-left: auto; }
+    </style>
+  </head>
+  <body class="bg-gray-100 font-mono">
+    <div class="bg-blue-300 py-4 px-8 text-white flex justify-between text-xl">
+      <div><i class="fas fa-lightbulb"><span id="alarm-message" class="mx-2 text-base">특이사항 없음</span></i></div>
+      <div><i class="fas fa-baby"><span id="timer-box" class="mx-2">00:00:00</span></i></div>
+    </div>
+    <main class="container mx-auto lg:flex lg:space-x-8">
+      <div class="lg:w-7/12 my-2">
+        <!-- Video iframe goes here -->
+        <iframe src="http://192.168.56.166/mjpeg/1" class="p-1 m-auto h-[395px] w-[524px] scale-x-[-1] scale-y-[-1]"></iframe>
       </div>
-      <div class="card humidity">
-        <h4><i class="fas fa-tint"></i> BOARD #1 - HUMIDITY</h4><p><span class="reading"><span id="h1"></span> &percnt;</span></p><p class="packet">Reading ID: <span id="rh1"></span></p>
+      <div class="lg:w-5/12 my-6">
+        <div class="bg-gray-200 py-2 px-4 flex rounded-lg justify-between items-center">
+          <div id="info">
+            <i class="fas fa-thermometer-half"><span id="temp">25 °C</span></i>
+            <i class="fas fa-tint"><span id="humid">60 %</span></i>
+            <i class="fas fa-weight"><span id="weight">5.2 kg</span></i>
+          </div>
+          <div>
+            <button class="refresh-data-button btn btn-primary"><i class="fas fa-sync-alt text-white"></i></button>
+          </div>
+        </div>
+        <div class="bg-gray-200 p-4 my-6 rounded-lg">
+          <div class="flex items-center">
+            <i class="fas fa-tv text-xl"><span class="ml-2 text-base">리모콘</span></i>
+          </div>
+          <div id="controller" class="mt-4 space-y-4">
+            <div>
+              <i class="fas"><span>모빌 회전</span></i>
+              <label><input type="checkbox" class="toggle toggle-primary" /></label>
+            </div>
+            <div>
+              <i class="fas"><span>요람 흔들기</span></i>
+              <label><input type="checkbox" class="toggle toggle-primary" /></label>
+            </div>
+            <div>
+              <i class="fas"><span>선풍기 동작</span></i>
+              <label><input type="checkbox" class="toggle toggle-primary" /></label>
+            </div>
+            <div class="mt-4">
+              <i class="fas"><span>타이머</span></i>
+              <i class="fas ml-auto">
+                <label>
+                  <div class="relative inline-flex">
+                    <select id="hours" class="select select-bordered focus:outline-none">
+                      <option value="0">0시간</option>
+                      <option value="1">1시간</option>
+                      <option value="2">2시간</option>
+                    </select>
+                  </div>
+                  <div class="relative inline-flex p-2">
+                    <select id="minutes" class="select select-bordered focus:outline-none">
+                      <option value="0">0분</option>
+                      <option value="1">1분</option>
+                      <option value="15">15분</option>
+                      <option value="30">30분</option>
+                    </select>
+                  </div>
+                  <i class="fas"><button id="timer-button" class="btn btn-primary text-white">시작</button></i>
+                </label>
+              </i>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card temperature">
-        <h4><i class="fas fa-thermometer-half"></i> BOARD #2 - TEMPERATURE</h4><p><span class="reading"><span id="t2"></span> &deg;C</span></p><p class="packet">Reading ID: <span id="rt2"></span></p>
-      </div>
-      <div class="card humidity">
-        <h4><i class="fas fa-tint"></i> BOARD #2 - HUMIDITY</h4><p><span class="reading"><span id="h2"></span> &percnt;</span></p><p class="packet">Reading ID: <span id="rh2"></span></p>
+    </main>
+    <!-- Add this HTML for the modalBg modal -->
+    <div id="modalBg" class="fixed inset-0 flex z-10 bg-gray-900 bg-opacity-20 hidden"></div>
+    <div id="modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
+      <div id="modalBox" class="bg-white p-8 px-8 rounded-lg shadow-lg justify-center items-center">
+        <div class="flex items-center justify-center" id="iconBox">
+          <i class="fas text-4xl mt-2" id="alert-icon"></i>
+        </div>
+        <i class="fas"><p class="text-center mt-2" id="alert-message">알람 메시지</p></i>
+        <div class="flex items-center justify-center mt-3">
+          <i class="fas"><button id="confirm-button" class="btn btn-secondary btn-sm text-white">확인</button></i>
+        </div>
       </div>
     </div>
-  </div>
-<script>
-if (!!window.EventSource) {
- var source = new EventSource('/events');
- 
- source.addEventListener('open', function(e) {
-  console.log("Events Connected");
- }, false);
- source.addEventListener('error', function(e) {
-  if (e.target.readyState != EventSource.OPEN) {
-    console.log("Events Disconnected");
-  }
- }, false);
- 
- source.addEventListener('message', function(e) {
-  console.log("message", e.data);
- }, false);
- 
- source.addEventListener('new_readings', function(e) {
-  console.log("new_readings", e.data);
-  var obj = JSON.parse(e.data);
-  document.getElementById("t"+obj.id).innerHTML = obj.temperature.toFixed(2);
-  document.getElementById("h"+obj.id).innerHTML = obj.humidity.toFixed(2);
-  document.getElementById("rt"+obj.id).innerHTML = obj.readingId;
-  document.getElementById("rh"+obj.id).innerHTML = obj.readingId;
- }, false);
-}
-</script>
-</body>
-</html>)rawliteral";
+    <script>
+      const timerBox = document.getElementById("timer-box");
+      const timerButton = document.getElementById("timer-button");
+      const alarmMessage = document.getElementById("alarm-message");
+      const alertMessage = document.getElementById("alert-message");
+      const modalBg = document.getElementById("modalBg");
+      const modal = document.getElementById("modal");
+      const modalBox = document.getElementById("modalBox");
+      const alertIcon = document.getElementById("alert-icon");
+      const iconBox = document.getElementById("iconBox");
+      const confirmButton = document.getElementById("confirm-button");
+      let countdownSeconds;
+      let countdownInterval;
 
-void setup() {
-  // Initialize Serial Monitor
-  Serial.begin(115200);
+      // 모달 확인 버튼 클릭 시
+      confirmButton.addEventListener("click", () => {
+        alarmMessage.innerHTML = "특이사항 없음.";
+        modal.classList.add("hidden");
+        modalBg.classList.add("hidden");
+        
+        iconBox.innerHTML = "";
+        modalBg.classList.remove("alert-mode", "emergency-mode");
+        iconBox.classList.remove("ringing", "anime-bounce");
+        alertIcon.classList.remove("fa-poo", "fa-baby", "fa-circle-exclamation", "fa-person-breastfeeding");
+      });
 
-  // Set the device as a Station and Soft Access Point simultaneously
-  WiFi.mode(WIFI_AP_STA);
-  
-  // Set device as a Wi-Fi Station
+      // 타이머 시작(취소) 버튼 클릭 시
+      timerButton.addEventListener("click", () => {
+        if (timerButton.innerHTML == "시작") {
+          const hours = parseInt(document.getElementById("hours").value);
+          const minutes = parseInt(document.getElementById("minutes").value);
+          const totalSeconds = (hours * 60 + minutes);
+          startTimer(totalSeconds);
+        } else {
+          stopTimer();
+        }
+      });
+      
+      function startTimer(totalSeconds) {
+        if (totalSeconds <= 0) {
+          timerBox.classList.remove("animate-pulse");
+          return;
+        }
+
+        timerButton.innerHTML = "취소";
+        timerButton.classList.add("btn-error");
+        timerBox.classList.add("animate-pulse");
+
+        countdownSeconds = totalSeconds;
+        countdownTimer();
+        countdownInterval = setInterval(countdownTimer, 1000);
+      }
+
+      function countdownTimer() {
+        if (countdownSeconds <= 0) {
+          stopTimer();
+          showBabyEscapeAlert();
+          timerBox.classList.remove("animate-pulse");
+        } else {
+          setTimerDisplay(countdownSeconds);
+          countdownSeconds--;
+        }
+      }
+      
+      function stopTimer() {
+        clearInterval(countdownInterval);
+        setTimerDisplay(0);
+        timerBox.classList.remove("animate-pulse");
+        timerButton.classList.remove("btn-error");
+        timerButton.innerHTML = "시작";
+      }
+      
+      function setTimerDisplay(totalSeconds) {
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        timerBox.textContent = `
+          ${hours.toString().padStart(2, "0")}:
+          ${minutes.toString().padStart(2, "0")}:
+          ${seconds.toString().padStart(2, "0")}
+        `;
+      }
+      
+      function showModal(message, iconClass, animationMode, iconAnime) {
+        modalBg.classList.remove("hidden");
+        modal.classList.remove("hidden");
+
+        alarmMessage.innerHTML = message;
+        alertMessage.textContent = message;
+        const icon = document.createElement("i");
+        icon.className = `fas ${iconClass} text-4xl mt-2`;
+        iconBox.appendChild(icon);
+        iconBox.classList.add(iconAnime);
+        modalBg.classList.add(animationMode);
+      }
+
+      function showDiaperChangeAlert() { showModal("끙차~아기 기저귀를 갈아주세요!", "fa-poo", "alert-mode", "animate-bounce");}
+      function showBabyCryAlert() { showModal("응애응애. 아기가 울고 있어요.", "fa-baby", "emergency-mode", "ringing"); }
+      function showBabyEscapeAlert() { showModal("아기가 요람에서 벗어났습니다!", "fa-circle-exclamation", "emergency-mode", "ringing"); }
+      function showBabyMealAlert() { showModal("응애 ~ 맘마 주세요!", "fa-person-breastfeeding", "alert-mode", "animate-bounce"); }
+      
+      // // 아기 배변모드 예시: 5초마다 배변 감지 알림 표시
+      // setTimeout(showDiaperChangeAlert, 500);
+      // setTimeout(showBabyEscapeAlert, 2000);
+      // setTimeout(showBabyCryAlert, 2000);
+      // setTimeout(showBabyMealAlert, 2000);
+    </script>
+    <script>
+      function sign(key, msg) {
+        return CryptoJS.HmacSHA256(msg, key);
+      }
+
+      function getSignatureKey(key, dateStamp, regionName, serviceName, terminator) {
+        let kDate = sign("AWS4" + key, dateStamp);
+        let kRegion = sign(kDate, regionName);
+        let kService = sign(kRegion, serviceName);
+        let kSigning = sign(kService, terminator);
+        return kSigning;
+      }
+ 
+      function signed_header(region_name, service_name, access_key, secret_key, method, url, body, terminator) {
+        const now = new Date().toISOString();
+        const amz_date = now.split('.')[0].replace(/[:-]/g, '') + 'Z';    // change format to YYYYMMDD'T'HHMMSS'Z'
+        const date_stamp = now.split('T')[0].replace(/-/g, '');        // change format to YYYYMMDD
+        
+        const content_type = 'application/json';
+        const host = url.split('/')[2];                                          // <your-endpoint>.<service-name>.<region>.amazonaws.com
+          const canonical_uri = url.split('com')[1].split('?')[0];                 // <path>
+            const canonical_querystring = url.split('com')[1].split('?')[1] || '';   // <query string>
+        const request_parameters = body || '';                                   // <request body>
+        const request_terminator = terminator || 'aws4_request';
+
+
+        const payload_hash = CryptoJS.SHA256(request_parameters).toString();
+        const canonical_headers = `content-type:${content_type}\nhost:${host}\nx-amz-date:${amz_date}\n`;
+        const signed_headers = `content-type;host;x-amz-date`;
+        
+        const canonical_request = `${method}\n${canonical_uri}\n${canonical_querystring}\n${canonical_headers}\n${signed_headers}\n${payload_hash}`;
+        
+        const algorithm = `AWS4-HMAC-SHA256`;
+        const credential_scope = `${date_stamp}/${region_name}/${service_name}/${request_terminator}`;
+        const string_to_sign = `${algorithm}\n${amz_date}\n${credential_scope}\n${CryptoJS.SHA256(canonical_request)}`;
+        
+        const signing_key = getSignatureKey(secret_key, date_stamp, region_name, service_name, request_terminator);
+        const signature = sign(signing_key, string_to_sign).toString(CryptoJS.enc.Hex);
+
+        const authorization_header = `${algorithm} Credential=${access_key}/${credential_scope}, SignedHeaders=${signed_headers}, Signature=${signature}`;
+        
+        return {
+          'Content-Type': content_type,
+          'X-Amz-Date': amz_date,
+          'Authorization': authorization_header
+        };
+      }
+
+      function test() {
+        const url = 'https://a1fmltb7n8klk1-ats.iot.ap-northeast-2.amazonaws.com/things/ESP32_BME280_LED/shadow';
+        const method = 'GET';
+        fetch(url, {
+          method: method,
+          headers: signed_header('ap-northeast-2', 'iotdata', 'AKIA4TP7DHY4FSGI5TMF', '3kTOhwPWtTBkVSKxvFZSGBrr3w02yLJ8JRQ68Bbs', method, url)
+        }).then(res => res.json())
+          .then(data => console.log(data.state))
+          .catch(err => console.log(err));
+      }
+
+      function test2() {
+        const url = 'https://a1fmltb7n8klk1-ats.iot.ap-northeast-2.amazonaws.com/things/ESP32_BME280_LED/shadow';
+        const method = 'POST';
+        const body = JSON.stringify({"state": {"reported": {"temp": 32}}});
+        fetch(url, {
+          method: method,
+          headers: signed_header('ap-northeast-2', 'iotdata', 'AKIA4TP7DHY4FSGI5TMF',
+          '3kTOhwPWtTBkVSKxvFZSGBrr3w02yLJ8JRQ68Bbs', method, url, body),
+          body: body
+        }).then(res => res.json())
+          .then(data => console.log(data))
+          .catch(err => console.log(err));
+      }
+    </script>
+  </body>
+</html>
+)rawliteral";
+
+AsyncWebServer server(80);
+
+void WiFiSetup() {
+  Serial.print("WIFI status = "); Serial.println(WiFi.getMode());
+  WiFi.disconnect(true); delay(1000);
+
+  WiFi.mode(WIFI_STA); delay(1000);
+  Serial.print("WIFI status = "); Serial.println(WiFi.getMode());
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Setting as a Wi-Fi Station..");
-  }
-  Serial.print("Station IP Address: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("Wi-Fi Channel: ");
-  Serial.println(WiFi.channel());
 
-  // Init ESP-NOW
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-  
-  // Once ESPNow is successfully Init, we will register for recv CB to
-  // get recv packer info
-  esp_now_register_recv_cb(OnDataRecv);
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html);
-  });
-   
-  events.onConnect([](AsyncEventSourceClient *client){
-    if(client->lastId()){
-      Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
-    }
-    // send event with message "hello!", id current millis
-    // and set reconnect delay to 1 second
-    client->send("hello!", NULL, millis(), 10000);
-  });
-  server.addHandler(&events);
+  for(; WiFi.status() != WL_CONNECTED; delay(1000))
+    Serial.println("Connecting to WiFi..");
+
+  Serial.println("Connected to wifi");
+  Serial.println("STA IP address: "); Serial.println(WiFi.localIP());
+}
+
+
+void setup()
+{
+  Serial.begin(115200);
+  WiFiSetup();
+
+  server.on("/", HTTP_GET, [] (AsyncWebServerRequest *request) {
+      request->send(200, "text/html", index_html);
+    });
   server.begin();
 }
- 
+
 void loop() {
-  static unsigned long lastEventTime = millis();
-  static const unsigned long EVENT_INTERVAL_MS = 5000;
-  if ((millis() - lastEventTime) > EVENT_INTERVAL_MS) {
-    events.send("ping",NULL,millis());
-    lastEventTime = millis();
-  }
 }

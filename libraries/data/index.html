@@ -15,6 +15,7 @@
       type="text/css"
     />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
     <style src="./style.css"></style>
   </head>
   <body class="bg-gray-100 font-sans">
@@ -26,9 +27,7 @@
         </div>
         <div class="mr-3 hidden" id="timerBox">
           <i class="fas fa-baby"></i>
-          <span id="timer" class="font-mono text-xl animate-pulse"
-            >00:00:00</span
-          >
+          <span id="timer" class="font-mono text-xl animate-pulse">00:00:00</span>
         </div>
       </div>
     </div>
@@ -151,6 +150,7 @@
         </div>
       </div>
     </div>
-    <script src="./script.js"></script>
+    <script src="./modalScript.js"></script>
+    <script src="./stateScript.js"></script>
   </body>
 </html>
