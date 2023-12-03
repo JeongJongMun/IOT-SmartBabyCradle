@@ -4,14 +4,14 @@
 #include <Arduino_JSON.h>
 
 AWS_IOT awsIot;
-const char* ssid = "YourSSID";
-const char* password = "YourPassword";
+const char* ssid = "iPhone";
+const char* password = "2019125021";
 
-const char* HOST_ADDRESS = "YourAWSIoTEndpoint";
-const char* CLIENT_ID = "YourClientID";
-const char* BABY_CRYING_TOPIC = "babycrying";
+char* HOST_ADDRESS = "a31qq0efjb35uk-ats.iot.ap-northeast-2.amazonaws.com";
+char* CLIENT_ID = "seoanam";
+char* BABY_CRYING_TOPIC = "esp32/babycrying";
 
-const int SOUND_SENSOR_PIN = 26;
+const int SOUND_SENSOR_PIN = 34;
 const int SAMPLES = 512; // Must be a power of 2
 const double SAMPLING_FREQUENCY = 1000; // Hz, must be less than 10000 due to ADC
 const int SOUND_THRESHOLD = 45; // Example threshold in decibel
@@ -27,72 +27,21 @@ const double BABY_CRY_FREQ_MAX = 550.0; // Maximum frequency for baby cry (in Hz
 const double INTENSITY_THRESHOLD = 2000.0; // Minimum intensity to consider
 const int MATCH_THRESHOLD = 100; // Number of matches within the frequency range to consider as baby crying
 
+int status = WL_IDLE_STATUS;
+int msgCount=0,msgReceived = 0;
+char payload[512];
+char rcvdPayload[512];
+unsigned long preMil = 0;
+const long intMil = 5000; 
+
 double vReal[SAMPLES];
 double vImag[SAMPLES];
 arduinoFFT FFT(vReal, vImag, SAMPLES, SAMPLING_FREQUENCY);
 
-double readDecibelLevel();
-bool detectSoundPattern();
-bool isBabyCrying(double frequencies[], double intensities[], int count);
-
-void setup() {
-    Serial.begin(115200);
-    pinMode(SOUND_SENSOR_PIN, INPUT);
-
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("Connected to WiFi");
-
-    if (awsIot.connect(HOST_ADDRESS, CLIENT_ID) == 0) {
-        Serial.println("Connected to AWS IoT");
-    } else {
-        Serial.println("AWS IoT connection failed");
-        return;
-    }
-}
-
-void loop() {
-    double decibelLevel = readDecibelLevel();
-    // Serial.print("Decibel Level: "); // Uncomment for debugging
-    // Serial.println(decibelLevel);
-
-    if (decibelLevel > SOUND_THRESHOLD) {
-        if (detectSoundPattern()) {
-            // Perform FFT and intensity analysis
-            FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-            FFT.Compute(FFT_FORWARD);
-            FFT.ComplexToMagnitude();
-
-            double frequencies[SAMPLES / 2];
-            double intensities[SAMPLES / 2];
-            for (int i = 0; i < SAMPLES / 2; i++) {
-                frequencies[i] = (i * SAMPLING_FREQUENCY) / SAMPLES;
-                intensities[i] = vReal[i];
-            }
-
-            if (isBabyCrying(frequencies, intensities, SAMPLES / 2)) {
-                awsIot.publish(BABY_CRYING_TOPIC, "True");
-                Serial.println("Baby is crying! Message published.");
-            } else {
-                awsIot.publish(BABY_CRYING_TOPIC, "False");
-                Serial.println("No baby crying detected. Message published.");
-            }
-        } else {
-            Serial.println("No significant crying pattern detected.");
-        }
-    } else {
-        // Serial.println("Sound level is below threshold."); // Uncomment for debugging
-    }
-    delay(1000);
-}
-
 double readDecibelLevel() {
     int analogValue = analogRead(SOUND_SENSOR_PIN);
     // double decibelLevel = (analogValue / 1023.0) * 120.0; // Convert to decibel
-    return analogValue;
+    return double(analogValue);
 }
 
 bool detectSoundPattern() {
@@ -111,9 +60,10 @@ bool detectSoundPattern() {
             isSpike = false;
         }
         lastIntensity = currentIntensity;
+        delay(20);
     }
-    // Serial.print("Spike Count: "); // Uncomment for debugging
-    // Serial.println(spikeCount);
+    Serial.print("Spike Count: "); // Uncomment for debugging
+    Serial.println(spikeCount);
     return spikeCount >= MIN_SPIKES && spikeCount <= MAX_SPIKES;
 }
 
@@ -122,14 +72,91 @@ bool isBabyCrying(double frequencies[], double intensities[], int count) {
     for (int i = 0; i < count; i++) {
         if (frequencies[i] >= BABY_CRY_FREQ_MIN && frequencies[i] <= BABY_CRY_FREQ_MAX &&
             intensities[i] > INTENSITY_THRESHOLD) {
-            // Serial.print("Frequency : "); // Uncomment for debugging
-            // Serial.print(frequencies[i]);
-            // Serial.print("   intensity : "); // Uncomment for debugging
-            // Serial.println(intensities[i]);
+            Serial.print("Frequency : "); // Uncomment for debugging
+            Serial.print(frequencies[i]);
+            Serial.print("   intensity : "); // Uncomment for debugging
+            Serial.println(intensities[i]);
             targetFrequencyMatches++;
         }
     }
-    // Serial.print("Target Frequency Matches: "); // Uncomment for debugging
-    // Serial.println(targetFrequencyMatches);
+    Serial.print("Target Frequency Matches: "); // Uncomment for debugging
+    Serial.println(targetFrequencyMatches);
     return targetFrequencyMatches > MATCH_THRESHOLD;
+}
+
+void mySubCallBackHandler (char *topicName, int payloadLen, char *payLoad) // 인터럽트 시 호출되는 함수
+{
+    strncpy(rcvdPayload,payLoad,payloadLen);
+    rcvdPayload[payloadLen] = 0;
+    msgReceived = 1;
+}
+
+void setup() {
+    Serial.begin(115200);
+    Serial.print("WIFI status = ");
+    Serial.println(WiFi.getMode());
+    WiFi.disconnect(true);
+    delay(1000);
+    WiFi.mode(WIFI_STA);
+    delay(1000);
+    Serial.print("WIFI status = ");
+    Serial.println(WiFi.getMode()); //++choi
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi..");
+    }
+    Serial.println("Connected to wifi");
+    if(awsIot.connect(HOST_ADDRESS,CLIENT_ID)== 0) {
+        Serial.println("Connected to AWS");
+        delay(1000);
+        if(0==awsIot.subscribe(BABY_CRYING_TOPIC,mySubCallBackHandler)) {
+            Serial.println("Subscribe Successfull");
+        }
+        else {
+            Serial.println("Subscribe Failed, Check the Thing Name and Certificates");
+            while(1);
+        }
+    }
+    else {
+        Serial.println("AWS connection failed, Check the HOST Address");
+        while(1);
+    }
+    pinMode(SOUND_SENSOR_PIN,INPUT);
+    delay(1000);
+}
+
+void loop() {
+    double decibelLevel = readDecibelLevel();
+    Serial.print("Decibel Level: "); // Uncomment for debugging
+    Serial.println(decibelLevel);
+
+    if (decibelLevel > SOUND_THRESHOLD) {
+        Serial.println("Sound level above the threshold detected.");
+        if (detectSoundPattern()) {
+            // Perform FFT and intensity analysis
+            FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+            FFT.Compute(FFT_FORWARD);
+            FFT.ComplexToMagnitude();
+
+            double frequencies[SAMPLES / 2];
+            double intensities[SAMPLES / 2];
+            for (int i = 0; i < SAMPLES / 2; i++) {
+                frequencies[i] = (i * SAMPLING_FREQUENCY) / SAMPLES;
+                intensities[i] = vReal[i];
+            }
+            if (isBabyCrying(frequencies, intensities, SAMPLES / 2)) {
+                awsIot.publish(BABY_CRYING_TOPIC, "{\"message\":\"True\"}");
+                Serial.println("Baby is crying! Message published.");
+            } else {
+                // awsIot.publish(BABY_CRYING_TOPIC, "False");
+                Serial.println("No baby crying detected.");
+            }
+        } else {
+            Serial.println("No significant crying pattern detected.");
+        }
+    } else {
+        // Serial.println("Sound level is below threshold."); // Uncomment for debugging
+    }
+    delay(1000);
 }
