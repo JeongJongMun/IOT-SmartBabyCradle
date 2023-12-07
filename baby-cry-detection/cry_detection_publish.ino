@@ -7,9 +7,9 @@ AWS_IOT awsIot;
 const char* ssid = "iPhone";
 const char* password = "2019125021";
 
-char* HOST_ADDRESS = "a31qq0efjb35uk-ats.iot.ap-northeast-2.amazonaws.com";
+char* HOST_ADDRESS = "a1fmltb7n8klk1-ats.iot.ap-northeast-2.amazonaws.com";
 char* CLIENT_ID = "seoanam";
-char* BABY_CRYING_TOPIC = "esp32/babycrying";
+char* BABY_CRYING_TOPIC = "$aws/things/Smart_Cradle/shadow/update";
 
 const int SOUND_SENSOR_PIN = 34;
 const int SAMPLES = 512; // Must be a power of 2
@@ -37,11 +37,30 @@ const long intMil = 5000;
 double vReal[SAMPLES];
 double vImag[SAMPLES];
 arduinoFFT FFT(vReal, vImag, SAMPLES, SAMPLING_FREQUENCY);
+bool haveCried = false;
 
 double readDecibelLevel() {
     int analogValue = analogRead(SOUND_SENSOR_PIN);
     // double decibelLevel = (analogValue / 1023.0) * 120.0; // Convert to decibel
     return double(analogValue);
+}
+
+void publishToAWSShadow(bool isCrying) {
+  // JSON 객체를 생성합니다.
+  JSONVar reportedState;
+  reportedState["state"]["reported"]["isCrying"] = isCrying ? "ON" : "OFF";
+
+  // JSON 객체를 문자열로 변환합니다.
+  String shadowUpdate = JSON.stringify(reportedState);
+  sprintf(payload, shadowUpdate.c_str());
+  // 문자열을 char* 타입으로 변환합니다.
+
+  // AWS IoT 쉐도우에 상태를 발행합니다.
+  if(awsIot.publish(BABY_CRYING_TOPIC, payload) == 0) {
+    Serial.println("Shadow update published successfully.");
+  } else {
+    Serial.println("Shadow update failed to publish.");
+  }
 }
 
 bool detectSoundPattern() {
@@ -130,7 +149,7 @@ void loop() {
     double decibelLevel = readDecibelLevel();
     Serial.print("Decibel Level: "); // Uncomment for debugging
     Serial.println(decibelLevel);
-
+  
     if (decibelLevel > SOUND_THRESHOLD) {
         Serial.println("Sound level above the threshold detected.");
         if (detectSoundPattern()) {
@@ -146,13 +165,21 @@ void loop() {
                 intensities[i] = vReal[i];
             }
             if (isBabyCrying(frequencies, intensities, SAMPLES / 2)) {
-                awsIot.publish(BABY_CRYING_TOPIC, "{\"message\":\"True\"}");
-                Serial.println("Baby is crying! Message published.");
+              haveCried = true;
+              Serial.println("Baby is crying! Updating shadow...");
+              publishToAWSShadow(true);
             } else {
-                // awsIot.publish(BABY_CRYING_TOPIC, "False");
-                Serial.println("No baby crying detected.");
+              if (haveCried) {
+                publishToAWSShadow(false);
+                haveCried = false;
+              }
+              Serial.println("No baby crying detected. Updating shadow...");
             }
         } else {
+            if (haveCried) {
+              publishToAWSShadow(false);
+              haveCried = false;
+            }
             Serial.println("No significant crying pattern detected.");
         }
     } else {
