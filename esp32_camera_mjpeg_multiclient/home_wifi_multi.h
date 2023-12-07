@@ -1,3 +1,3 @@
-#define SSID1 "AlpaVirus"
-#define PWD1 "imbumjjang"
+#define SSID1 "Realmadrid"
+#define PWD1 "kingofmadrid"
 

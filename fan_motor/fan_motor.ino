@@ -1,14 +1,17 @@
+//AWS IoT코어를 통해 선풍기 모터를 제어하는 코드
+//delta subscribe, publish없음
+
 #include <AWS_IOT.h>
 #include <WiFi.h>
 
 AWS_IOT motor_client;
 
-const char* ssid = "AlpaVirus";
-const char* password = "imbumjjang";
+const char* ssid = "Realmadrid";
+const char* password = "kingofmadrid";
 char HOST_ADDRESS[]="a2ichw3atwh8od-ats.iot.ap-northeast-2.amazonaws.com";
 char CLIENT_ID[]= "YIB_ESP32";
-char sTOPIC_NAME[]= ""; // subscribe topic name
-char pTOPIC_NAME[]= "esp32/dcMotor";
+char sTOPIC_NAME[]= "$aws/things/esp32_fan/shadow/name/fan_shadow/update/delta"; // subscribe topic name
+char pTOPIC_NAME[]= "esp32/Motor";
 char payload[512];
 char rcvdPayload[512];
 
@@ -30,7 +33,7 @@ void mySubCallBackHandler (char *topicName, int payloadLen, char *payLoad)
 }
 
 void dcMotorPublish() {
-  sprintf(payload,"{\"state\":{\"reported\":{\"isOn\":\"%d\"}}}", isOn);
+  sprintf(payload,"{\"state\":{\"reported\":{\"isOn\":\"%d\"}}}", power);
   if (motor_client.publish(pTOPIC_NAME,payload)==0) {
     Serial.print("Publish Message:");
     Serial.println(payload);

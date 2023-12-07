@@ -2,7 +2,7 @@
 #define APP_CPU 1
 #define PRO_CPU 0
 
-#include "src/OV2640.h"
+#include "OV2640.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WiFiClient.h>

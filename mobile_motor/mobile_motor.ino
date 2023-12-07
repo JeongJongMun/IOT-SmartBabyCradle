@@ -1,14 +1,17 @@
+//AWS IoT코어를 통해 모빌 모터를 제어하는 코드
+//delta subscribe, publish없음
+
 #include <AWS_IOT.h>
 #include <WiFi.h>
 
 AWS_IOT motor_client;
 
-const char* ssid = "AlpaVirus";
-const char* password = "imbumjjang";
+const char* ssid = "Realmadrid";
+const char* password = "kingofmadrid";
 char HOST_ADDRESS[]="a2ichw3atwh8od-ats.iot.ap-northeast-2.amazonaws.com";
 char CLIENT_ID[]= "YIB_ESP32";
-char sTOPIC_NAME[]= "$aws/things/esp32_fan/shadow/update/delta"; // subscribe topic name
-char pTOPIC_NAME[]= "esp32/dcMotor";
+char sTOPIC_NAME[]= "$aws/things/esp32_fan/shadow/name/ESP32_top/update/delta"; // subscribe topic name
+char pTOPIC_NAME[]= "esp32/Motor";
 char payload[512];
 char rcvdPayload[512];
 
@@ -28,8 +31,9 @@ void mySubCallBackHandler (char *topicName, int payloadLen, char *payLoad)
   else if (strstr(rcvdPayload,"OFF") != nullptr) isOn = 0;
 }
 
+//임시 publish 안쓰임
 void dcMotorPublish() {
-  sprintf(payload,"{\"state\":{\"reported\":{\"isOn\":\"%d\"}}}", isOn);
+  sprintf(payload,"{\"state\":{\"reported\":{\"fan\":\"%d\"}}}", isOn);
   if (motor_client.publish(pTOPIC_NAME,payload)==0) {
     Serial.print("Publish Message:");
     Serial.println(payload);
@@ -79,6 +83,7 @@ void setup() {
 }
 
 void loop() {
+  //반환된 상태에 따라 mobile 제어(on,off) 
   if (isOn) {
     motorSpeed = 90;
     analogWrite(INA, 0);
