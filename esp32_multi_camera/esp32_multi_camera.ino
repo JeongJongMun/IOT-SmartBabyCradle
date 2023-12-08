@@ -6,7 +6,6 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WiFiClient.h>
-
 #include <esp_bt.h>
 #include <esp_wifi.h>
 #include <esp_sleep.h>
@@ -20,19 +19,6 @@
 #define CAMERA_MODEL_AI_THINKER
 
 #include "camera_pins.h"
-
-/*
-  Next one is an include with wifi credentials.
-  This is what you need to do:
-
-  1. Create a file called "home_wifi_multi.h" in the same folder   OR   under a separate subfolder of the "libraries" folder of Arduino IDE. (You are creating a "fake" library really - I called it "MySettings").
-  2. Place the following text in the file:
-  #define SSID1 "replace with your wifi ssid"
-  #define PWD1 "replace your wifi password"
-  3. Save.
-
-  Should work then
-*/
 #include "home_wifi_multi.h"
 
 OV2640 cam;
@@ -41,20 +27,20 @@ WebServer server(80);
 
 // rtos task handles
 // Streaming is implemented with 3 tasks:
-TaskHandle_t tMjpeg;   // client connections to the webserver
-TaskHandle_t tCam;     // getting picture frames from the camera and storing them locally
-TaskHandle_t tStream;  // actually streaming frames to all connected clients
+TaskHandle_t tMjpeg;   // client connections
+TaskHandle_t tCam;     // 프레임 로컬 저장
+TaskHandle_t tStream;  // 연결된 모든 클라이언트에 스트리밍
 
-// frameSync is used to prevent streaming buffer as it is replaced with the next frame
+// 프레임 동기화 - 다음 프레임으로 대체될 때 스트리밍 버퍼를 방지
 SemaphoreHandle_t frameSync = NULL;
 
-// Queue stores currently we are streaming
+// 스트리밍 중인 큐 스토어
 QueueHandle_t streamingClients;
 
-//try to achieve 25 FPS frame rate
+//25 FPS 목표 속도
 const int FPS = 14;
 
-// web client requests every 50 ms (20 Hz)
+// 50ms(20Hz) 간격으로 요청
 const int WSINTERVAL = 100;
 
 
@@ -63,16 +49,15 @@ void mjpegCB(void* pvParameters) {
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = pdMS_TO_TICKS(WSINTERVAL);
 
-  // Creating frame synchronization semaphore and initializing it
   frameSync = xSemaphoreCreateBinary();
   xSemaphoreGive( frameSync );
 
-  // Creating a queue to track all connected clients
+  // 연결된 클라이언트 대기열 10대
   streamingClients = xQueueCreate( 10, sizeof(WiFiClient*) );
 
-  //=== setup section  ==================
+  // setup()
 
-  //  Creating RTOS task for grabbing frames from the camera
+  // RTOS task
   xTaskCreatePinnedToCore(
     camCB,        // callback
     "cam",        // name
@@ -82,7 +67,7 @@ void mjpegCB(void* pvParameters) {
     &tCam,        // RTOS task handle
     APP_CPU);     // core
 
-  //  Creating task to push the stream to all connected clients
+  //  연결된 모든 클라이언트에 스트림 푸시
   xTaskCreatePinnedToCore(
     streamCB,
     "strmCB",
@@ -96,7 +81,7 @@ void mjpegCB(void* pvParameters) {
   server.on("/jpg", HTTP_GET, handleJPG);
   server.onNotFound(handleNotFound);
 
-  //  Starting webserver
+  //  서버 시작
   server.begin();
 
   // loop()
@@ -109,110 +94,79 @@ void mjpegCB(void* pvParameters) {
   }
 }
 
+volatile size_t camSize;    // 현재 프레임 크기, byte
+volatile char* camBuf;    
 
-// Commonly used variables:
-volatile size_t camSize;    // size of the current frame, byte
-volatile char* camBuf;      // pointer to the current frame
-
-
-// RTOS task to grab frames from the camera
+// RTOS task 프레임
 void camCB(void* pvParameters) {
 
   TickType_t xLastWakeTime;
 
-  //  A running interval associated with currently desired frame rate
+  //  현재 원하는 프레임 속도, 실행 간격
   const TickType_t xFrequency = pdMS_TO_TICKS(1000 / FPS);
 
-  // Mutex for the critical section of swithing the active frames around
+  // mutex
   portMUX_TYPE xSemaphore = portMUX_INITIALIZER_UNLOCKED;
 
-  //  Pointers to the 2 frames, their respective sizes and index of the current frame
+  //  2개의 프레임, 각각의 크기 및 현재 프레임의 인덱스를 가리키는 포인터
   char* fbs[2] = { NULL, NULL };
   size_t fSize[2] = { 0, 0 };
   int ifb = 0;
 
-  //=== loop() section  ===================
+  // loop() section 
   xLastWakeTime = xTaskGetTickCount();
 
   for (;;) {
 
-    //  Grab a frame from the camera and query its size
     cam.run();
     size_t s = cam.getSize();
 
-    //  If frame size is more that we have previously allocated - request  125% of the current frame space
+    //  프레임 크기가 이전에 할당된 것보다 큰 경우 125% size up
     if (s > fSize[ifb]) {
       fSize[ifb] = s * 4 / 3;
       fbs[ifb] = allocateMemory(fbs[ifb], fSize[ifb]);
     }
 
-    //  Copy current frame into local buffer
+    //  프레임 로컬에 copy
     char* b = (char*) cam.getfb();
     memcpy(fbs[ifb], b, s);
-
-    //  Let other tasks run and wait until the end of the current frame rate interval (if any time left)
     taskYIELD();
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
-
-    //  Only switch frames around if no frame is currently being streamed to a client
-    //  Wait on a semaphore until client operation completes
+    //  현재 클라이언트로 스트리밍 중인 프레임이 없는 경우에만 프레임을 전환
     xSemaphoreTake( frameSync, portMAX_DELAY );
 
-    //  Do not allow interrupts while switching the current frame
+    //  인터럽트 허용 x
     portENTER_CRITICAL(&xSemaphore);
     camBuf = fbs[ifb];
     camSize = s;
     ifb++;
-    ifb &= 1;  // this should produce 1, 0, 1, 0, 1 ... sequence
+    ifb &= 1;
     portEXIT_CRITICAL(&xSemaphore);
-
-    //  Let anyone waiting for a frame know that the frame is ready
     xSemaphoreGive( frameSync );
-
-    //  Technically only needed once: let the streaming task know that we have at least one frame
-    //  and it could start sending frames to the clients, if any
     xTaskNotifyGive( tStream );
-
-    //  Immediately let other (streaming) tasks run
     taskYIELD();
-
-    //  If streaming task has suspended itself (no active clients to stream to)
-    //  there is no need to grab frames from the camera. We can save some juice
-    //  by suspedning the tasks
-    if ( eTaskGetState( tStream ) == eSuspended ) {
-      vTaskSuspend(NULL);  // passing NULL means "suspend yourself"
-    }
   }
 }
 
 
-// ==== Memory allocator that takes advantage of PSRAM if present =======================
+//PSRAM이 있는 경우 memory 할당
 char* allocateMemory(char* aPtr, size_t aSize) {
-
-  //  Since current buffer is too smal, free it
-  if (aPtr != NULL) free(aPtr);
-
+  if (aPtr != NULL) free(aPtr); //버퍼 비우기
 
   size_t freeHeap = ESP.getFreeHeap();
   char* ptr = NULL;
-
-  // If memory requested is more than 2/3 of the currently free heap, try PSRAM immediately
+  // 2/3초과시 psram
   if ( aSize > freeHeap * 2 / 3 ) {
     if ( psramFound() && ESP.getFreePsram() > aSize ) {
       ptr = (char*) ps_malloc(aSize);
     }
   }
   else {
-    //  Enough free heap - let's try allocating fast RAM as a buffer
+    //  여유시
     ptr = (char*) malloc(aSize);
-
-    //  If allocation on the heap failed, let's give PSRAM one more chance:
-    if ( ptr == NULL && psramFound() && ESP.getFreePsram() > aSize) {
-      ptr = (char*) ps_malloc(aSize);
-    }
   }
 
-  // Finally, if the memory pointer is NULL, we were not able to allocate any memory, and that is a terminal condition.
+  // 메모리 포인터가 NULL이면 종료
   if (ptr == NULL) {
     ESP.restart();
   }
@@ -231,25 +185,17 @@ const int bdrLen = strlen(BOUNDARY);
 const int cntLen = strlen(CTNTTYPE);
 
 
-// ==== Handle connection request from clients ===============================
+// 클라이언트의 연결 요청 처리
 void handleJPGSstream(void)
 {
-  //  Can only acommodate 10 clients. The limit is a default for WiFi connections
   if ( !uxQueueSpacesAvailable(streamingClients) ) return;
 
-
-  //  Create a new WiFi Client object to keep track of this one
   WiFiClient* client = new WiFiClient();
   *client = server.client();
-
-  //  Immediately send this client a header
   client->write(HEADER, hdrLen);
   client->write(BOUNDARY, bdrLen);
 
-  // Push the client to the streaming queue
   xQueueSend(streamingClients, (void *) &client, 0);
-
-  // Wake up streaming tasks, if they were previously suspended:
   if ( eTaskGetState( tCam ) == eSuspended ) vTaskResume( tCam );
   if ( eTaskGetState( tStream ) == eSuspended ) vTaskResume( tStream );
 }
@@ -261,39 +207,26 @@ void streamCB(void * pvParameters) {
   TickType_t xLastWakeTime;
   TickType_t xFrequency;
 
-  //  Wait until the first frame is captured and there is something to send
-  //  to clients
-  ulTaskNotifyTake( pdTRUE,          /* Clear the notification value before exiting. */
-                    portMAX_DELAY ); /* Block indefinitely. */
+  //  첫 프레임 후 다음 화면까지 대기
+  ulTaskNotifyTake( pdTRUE,        
+                    portMAX_DELAY );
 
   xLastWakeTime = xTaskGetTickCount();
   for (;;) {
-    // Default assumption we are running according to the FPS
     xFrequency = pdMS_TO_TICKS(1000 / FPS);
-
-    //  Only bother to send anything if there is someone watching
+    //  보고 있을 때
     UBaseType_t activeClients = uxQueueMessagesWaiting(streamingClients);
     if ( activeClients ) {
-      // Adjust the period to the number of connected clients
       xFrequency /= activeClients;
-
-      //  Since we are sending the same frame to everyone,
-      //  pop a client from the the front of the queue
       WiFiClient *client;
       xQueueReceive (streamingClients, (void*) &client, 0);
 
-      //  Check if this client is still connected.
-
+      //  클라이언트 연결 체크
       if (!client->connected()) {
-        //  delete this client reference if s/he has disconnected
-        //  and don't put it back on the queue anymore. Bye!
         delete client;
       }
       else {
-
-        //  Ok. This is an actively connected client.
-        //  Let's grab a semaphore to prevent frame changes while we
-        //  are serving this frame
+        //프레임 변경 방지위해 세미포어 잡기
         xSemaphoreTake( frameSync, portMAX_DELAY );
 
         client->write(CTNTTYPE, cntLen);
@@ -301,22 +234,14 @@ void streamCB(void * pvParameters) {
         client->write(buf, strlen(buf));
         client->write((char*) camBuf, (size_t)camSize);
         client->write(BOUNDARY, bdrLen);
-
-        // Since this client is still connected, push it to the end
-        // of the queue for further processing
         xQueueSend(streamingClients, (void *) &client, 0);
-
-        //  The frame has been served. Release the semaphore and let other tasks run.
-        //  If there is a frame switch ready, it will happen now in between frames
         xSemaphoreGive( frameSync );
         taskYIELD();
       }
     }
     else {
-      //  Since there are no connected clients, there is no reason to waste battery running
       vTaskSuspend(NULL);
     }
-    //  Let other tasks run after serving every client
     taskYIELD();
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
@@ -329,7 +254,7 @@ const char JHEADER[] = "HTTP/1.1 200 OK\r\n" \
                        "Content-type: image/jpeg\r\n\r\n";
 const int jhdLen = strlen(JHEADER);
 
-// ==== Serve up one JPEG frame =============================================
+// 1frame upload
 void handleJPG(void)
 {
   WiFiClient client = server.client();
@@ -341,7 +266,7 @@ void handleJPG(void)
 }
 
 
-// ==== Handle invalid URL requests ============================================
+// invaild url
 void handleNotFound()
 {
   String message = "Server is running!\n\n";
@@ -405,7 +330,7 @@ void setup()
     ESP.restart();
   }
 
-  //  Configure and connect to WiFi
+  // connect to WiFi
   IPAddress ip;
 
   WiFi.mode(WIFI_STA);
@@ -423,8 +348,7 @@ void setup()
   Serial.print(ip);
   Serial.println("/mjpeg/1");
 
-
-  // Start mainstreaming RTOS task
+  // Start RTOS task
   xTaskCreatePinnedToCore(
     mjpegCB,
     "mjpeg",
@@ -434,7 +358,6 @@ void setup()
     &tMjpeg,
     APP_CPU);
 }
-
 
 void loop() {
   vTaskDelay(1000);
