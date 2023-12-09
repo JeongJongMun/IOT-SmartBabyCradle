@@ -1,3 +1,57 @@
+#include <WiFi.h>
+#include <FS.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SH1106.h>
+/* If using software SPI (the default case): */
+#define OLED_MOSI 23  // 9
+#define OLED_CLK 18   // 10
+#define OLED_DC 33    // 11
+#define OLED_CS 32    // 12
+#define OLED_RESET 5 // 13
+Adafruit_SH1106 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
+// Uncomment this block to use hardware SPI
+// #define OLED_DC 26
+// #define OLED_CS 15 // HSPI
+// #define OLED_RESET 27
+// Adafruit_SH1106 display(OLED_DC, OLED_RESET, OLED_CS);
+
+#define NUMFLAKES 10
+#define XPOS 0
+#define YPOS 1
+#define DELTAY 2
+
+#define LOGO16_GLCD_HEIGHT 16
+#define LOGO16_GLCD_WIDTH 16
+static const unsigned char PROGMEM logo16_glcd_bmp[] =
+    {B00000000, B11000000,
+     B00000001, B11000000,
+     B00000001, B11000000,
+     B00000011, B11100000,
+     B11110011, B11100000,
+     B11111110, B11111000,
+     B01111110, B11111111,
+     B00110011, B10011111,
+     B00011111, B11111100,
+     B00001101, B01110000,
+     B00011011, B10100000,
+     B00111111, B11100000,
+     B00111111, B11110000,
+     B01111100, B11110000,
+     B01110000, B01110000,
+     B00000000, B00110000};
+#if (SH1106_LCDHEIGHT != 64)
+#error("Height incorrect, please fix Adafruit_SH1106.h!");
+#endif
+
+const char* ssid = "Realmadrid";
+const char* password = "kingofmadrid";
+
+const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en" data-theme="cupcake">
   <head>
@@ -36,7 +90,7 @@
     <main class="container mx-auto lg:flex lg:space-x-8">
       <div class="lg:w-7/12 my-2">
         <!-- Video iframe goes here -->
-        <iframe src="http://192.168.56.166/mjpeg/1" class="aspect-video p-1 m-auto h-[490px] w-[655px] scale-x-[-1] scale-y-[-1]"></iframe>
+        <iframe src="http://192.168.56.166/mjpeg/1" class="p-1 m-auto h-[490px] w-[655px] scale-x-[-1] scale-y-[-1]"></iframe>
       </div>
       <div class="lg:w-5/12 my-6">
         <div class="bg-gray-200 py-2 px-4 flex rounded-lg justify-between items-center">
@@ -207,7 +261,8 @@
       const fanCheckbox = document.getElementById("fan");
       let countdownSeconds;
       let countdownInterval;
-
+    </script>
+    <script>
       function startTimer(totalSeconds) {
         if (totalSeconds <= 0) {
           timerBox.classList.remove("animate-pulse");
@@ -257,7 +312,8 @@
           ${seconds.toString().padStart(2, "0")}
         `;
       }
-      
+    </script>
+    <script>
       function showModal(message, iconClass, animationMode, iconAnime) {
         modalBg.classList.remove("hidden");
         modal.classList.remove("hidden");
@@ -275,7 +331,6 @@
       function showBabyCryAlert() { showModal("응애응애. 아기가 울고 있어요.", "fa-baby", "emergency-mode", "ringing"); }
       function showBabyEscapeAlert() { showModal("아기가 요람에서 벗어났습니다!", "fa-circle-exclamation", "emergency-mode", "ringing"); }
       function showBabyMealAlert() { showModal("응애 ~ 맘마 주세요!", "fa-person-breastfeeding", "alert-mode", "animate-bounce"); }
-
     </script>
     <script>
       function updateInfo() {
@@ -294,6 +349,7 @@
           fanCheckbox.checked = (state.servo=="ON");
         });
       }
+
       // 모달 확인 버튼 클릭 시
       confirmButton.addEventListener("click", () => {
         alarmMessage.innerHTML = "특이사항 없음.";
@@ -317,9 +373,6 @@
           stopTimer();
         }
       });
-
-      refreshButton.addEventListener("click", () => updateInfo());
-      
       
       // // 아기 배변모드 예시: 5초마다 배변 감지 알림 표시
       // setTimeout(showDiaperChangeAlert, 500);
@@ -327,6 +380,7 @@
       // setTimeout(showBabyCryAlert, 2000);
       // setTimeout(showBabyMealAlert, 2000);
 
+      refreshButton.addEventListener("click", () => updateInfo());
       mobileCheckbox.addEventListener("click", () => {
         post_shadow("ESP32_top", {"state":{"desired": {"servo": mobileCheckbox.checked ? "ON" : "OFF"}}});
       });
@@ -353,9 +407,76 @@
         });
       }
 
-
       updateInfo();
       setFirstTimer();
     </script>
   </body>
 </html>
+)rawliteral";
+
+AsyncWebServer server(80);
+
+void WiFiSetup() {
+  Serial.print("WIFI status = "); Serial.println(WiFi.getMode());
+  WiFi.disconnect(true); delay(1000);
+
+  WiFi.mode(WIFI_STA); delay(1000);
+  Serial.print("WIFI status = "); Serial.println(WiFi.getMode());
+  WiFi.begin(ssid, password);
+
+
+  for(; WiFi.status() != WL_CONNECTED; delay(1000))
+    Serial.println("Connecting to WiFi..");
+
+  Serial.println("Connected to wifi");
+  Serial.println("STA IP address: "); Serial.println(WiFi.localIP());
+}
+
+void ServerSetup() {
+  server.on("/", HTTP_GET, [] (AsyncWebServerRequest *request) {
+      request->send(200, "text/html", index_html);
+    });
+  server.begin();
+}
+
+void LCDSetup() {
+  Serial.begin(115200);
+  display.begin(SH1106_SWITCHCAPVCC);
+  display.display();
+  delay(1000);
+  display.clearDisplay();
+
+  // text display tests
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+
+  display.println("Temperature: 36.5 *C");  
+  display.println("Humid: 100 %");
+  display.println("Weight: 2.3 Kg");
+  display.display();
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  WiFiSetup();
+  ServerSetup();
+  LCDSetup();
+}
+
+void loop() {
+  char ch;
+  if (Serial.available() > 0) {
+    ch = Serial.read();
+    if (ch == '0') {
+      display.clearDisplay();
+      display.setCursor(0, 0);
+    }
+    else if (ch >= '1' && ch < '9')
+      display.setTextSize(ch - '0');
+    else
+      display.print(ch);
+    display.display();
+  }
+}
