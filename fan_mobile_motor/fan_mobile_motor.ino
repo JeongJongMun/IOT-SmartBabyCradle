@@ -7,6 +7,7 @@
 //AWS parameter
 AWS_IOT motor_client; //iot class
 
+<<<<<<< HEAD
 char HOST_ADDRESS[]="xxx-xxx.iot.ap-northeast-2.amazonaws.com";
 char CLIENT_ID[]= "YIB_ESP32";
 char sTOPIC_NAME[]= ""; // subscribe topic name
@@ -16,6 +17,17 @@ char rcvdPayload[512];
 //wifi parameter
 const char* ssid = "xxxx";
 const char* password = "xxxx";
+=======
+char HOST_ADDRESS[]="a1fmltb7n8klk1-ats.iot.ap-northeast-2.amazonaws.com";
+char CLIENT_ID[]= "YIB_ESP32";
+char sTOPIC_NAME[]= "$aws/things/Smart_Cradle/shadow/name/ESP32_top/update/delta"; // subscribe topic name
+char pTOPIC_NAME[]= "$aws/things/Smart_Cradle/shadow/name/ESP32_top/update"; //임시 publish
+char payload[512];
+char rcvdPayload[512];
+//wifi parameter
+const char* ssid = "Realmadrid";
+const char* password = "kingofmadrid";
+>>>>>>> cb8c97d37699d83a306b13d15d499465a31bb452
 int status = WL_IDLE_STATUS;
 //motor parameter
 const int fanINA = 33;
