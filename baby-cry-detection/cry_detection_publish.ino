@@ -4,12 +4,12 @@
 #include <Arduino_JSON.h>
 
 AWS_IOT awsIot;
-const char* ssid = "iPhone";
-const char* password = "2019125021";
+const char* ssid = "";
+const char* password = "";
 
-char* HOST_ADDRESS = "a1fmltb7n8klk1-ats.iot.ap-northeast-2.amazonaws.com";
+char* HOST_ADDRESS = "";
 char* CLIENT_ID = "seoanam";
-char* BABY_CRYING_TOPIC = "$aws/things/Smart_Cradle/shadow/update";
+char* BABY_CRYING_TOPIC = "";
 
 const int SOUND_SENSOR_PIN = 34;
 const int SAMPLES = 512; // Must be a power of 2
